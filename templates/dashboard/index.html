@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Overview{% endblock %}
+{% block nav_home %}active{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="mb-0 fw-bold">Market Overview</h4>
+    <small class="text-muted">Next-day volatility predictions for AI sector stocks</small>
+  </div>
+  <button id="refreshBtn" class="btn btn-outline-dark btn-sm">
+    <i class="bi bi-arrow-clockwise me-1"></i>Refresh data
+  </button>
+</div>
+
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-dark">
+        <tr>
+          <th>Ticker</th>
+          <th>Last Close</th>
+          <th>Date</th>
+          <th>Volatility Signal</th>
+          <th>Confidence</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in overview %}
+        <tr>
+          <td><span class="fw-bold">{{ row.ticker }}</span></td>
+          <td>${{ row.close }}</td>
+          <td class="text-muted small">{{ row.date }}</td>
+          <td>
+            {% if row.volatile %}
+              <span class="badge bg-warning text-dark">
+                <i class="bi bi-exclamation-triangle me-1"></i>Volatile
+              </span>
+            {% else %}
+              <span class="badge bg-success">
+                <i class="bi bi-check-circle me-1"></i>Calm
+              </span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <div class="progress flex-grow-1" style="height:8px; max-width:120px;">
+                <div class="progress-bar {% if row.volatile %}bg-warning{% else %}bg-success{% endif %}"
+                     style="width:{{ row.probability }}%"></div>
+              </div>
+              <small class="text-muted">{{ row.probability }}%</small>
+            </div>
+          </td>
+          <td>
+            <a href="{% url 'ticker_detail' row.ticker %}"
+               class="btn btn-sm btn-outline-secondary">
+              Details <i class="bi bi-chevron-right"></i>
+            </a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" class="text-center text-muted py-4">No data available.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="text-muted small mt-3">
+  <i class="bi bi-info-circle me-1"></i>
+  Predictions are based on a logistic regression model (CV AUC 0.70) trained on
+  technical indicators. This is not financial advice.
+</p>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById("refreshBtn").addEventListener("click", function () {
+  const btn = this;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Refreshing...';
+
+  fetch("{% url 'refresh_data' %}", {
+    method: "POST",
+    headers: {"X-CSRFToken": "{{ csrf_token }}"},
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.status === "ok") {
+      location.reload();
+    } else {
+      alert("Error: " + data.message);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Refresh data';
+    }
+  });
+});
+</script>
+{% endblock %}
