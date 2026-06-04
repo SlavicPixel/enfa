@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}{{ ticker }}{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-start mb-4">
+  <div>
+    <a href="{% url 'index' %}" class="text-muted small text-decoration-none">
+      <i class="bi bi-chevron-left"></i> Overview
+    </a>
+    <h4 class="fw-bold mb-0 mt-1">{{ ticker }}</h4>
+    {% if result %}
+      <small class="text-muted">
+        Last feature date:
+        {{ feat.date|default:"—" }}
+      </small>
+    {% endif %}
+  </div>
+
+  {% if result %}
+  <div class="text-end">
+    {% if result.volatile %}
+      <span class="badge bg-warning text-dark fs-6 px-3 py-2">
+        <i class="bi bi-exclamation-triangle me-1"></i>Volatile expected
+      </span>
+    {% else %}
+      <span class="badge bg-success fs-6 px-3 py-2">
+        <i class="bi bi-check-circle me-1"></i>Calm expected
+      </span>
+    {% endif %}
+    <div class="text-muted small mt-1">
+      Confidence: {{ result.probability|floatformat:1 }}%
+      &nbsp;|&nbsp; Model AUC: {{ model_auc }}%
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Price chart -->
+<div class="card shadow-sm mb-4">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-graph-up me-1"></i>Price History (180 days)
+  </div>
+  <div class="card-body">
+    <canvas id="priceChart" height="100"></canvas>
+  </div>
+</div>
+
+<!-- Sentiment chart -->
+<div class="card shadow-sm mb-4">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-bar-chart me-1"></i>Daily Net Sentiment (180 days)
+  </div>
+  <div class="card-body">
+    <canvas id="sentimentChart" height="80"></canvas>
+  </div>
+</div>
+
+<!-- Recent news -->
+<div class="card shadow-sm mb-4">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-newspaper me-1"></i>Recent News
+  </div>
+  <ul class="list-group list-group-flush">
+    {% for article in news %}
+    <li class="list-group-item">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          {% if article.url %}
+            <a href="{{ article.url }}" target="_blank"
+               class="text-decoration-none text-dark fw-semibold small">
+              {{ article.title|truncatechars:100 }}
+            </a>
+          {% else %}
+            <span class="small fw-semibold">{{ article.title|truncatechars:100 }}</span>
+          {% endif %}
+          <div class="text-muted" style="font-size:0.75rem;">
+            {{ article.source|default:"Unknown" }}
+            &nbsp;&middot;&nbsp;
+            {{ article.published_at|truncatechars:10 }}
+          </div>
+        </div>
+        <span class="badge ms-2
+          {% if article.sentiment == 'positive' %}bg-success
+          {% elif article.sentiment == 'negative' %}bg-danger
+          {% else %}bg-secondary{% endif %}">
+          {{ article.sentiment }}
+        </span>
+      </div>
+    </li>
+    {% empty %}
+    <li class="list-group-item text-muted text-center py-3">No recent news.</li>
+    {% endfor %}
+  </ul>
+</div>
+
+<p class="text-muted small">
+  <i class="bi bi-info-circle me-1"></i>
+  ENFA Is Not a Financial Advisor. Predictions are for educational purposes only.
+</p>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Price chart ───────────────────────────────────────────────────────────
+const prices    = {{ prices|safe }};
+const priceDates = prices.map(p => p.date);
+const priceClose = prices.map(p => p.close);
+
+new Chart(document.getElementById("priceChart"), {
+  type: "line",
+  data: {
+    labels: priceDates,
+    datasets: [{
+      label: "Close ($)",
+      data: priceClose,
+      borderColor: "#212529",
+      backgroundColor: "rgba(33,37,41,0.05)",
+      borderWidth: 1.5,
+      pointRadius: 0,
+      fill: true,
+      tension: 0.3,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { maxTicksLimit: 8 } },
+      y: { ticks: { callback: v => "$" + v.toFixed(0) } }
+    }
+  }
+});
+
+// ── Sentiment chart ───────────────────────────────────────────────────────
+const sentiment = {{ sentiment|safe }};
+const sentDates  = sentiment.map(s => s.date);
+const sentVals   = sentiment.map(s => s.net_sentiment || 0);
+
+new Chart(document.getElementById("sentimentChart"), {
+  type: "bar",
+  data: {
+    labels: sentDates,
+    datasets: [{
+      label: "Net Sentiment",
+      data: sentVals,
+      backgroundColor: sentVals.map(v =>
+        v > 0 ? "rgba(25,135,84,0.6)" : "rgba(220,53,69,0.6)"
+      ),
+      borderWidth: 0,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { maxTicksLimit: 8 } },
+      y: { ticks: { maxTicksLimit: 5 } }
+    }
+  }
+});
+</script>
+{% endblock %}
