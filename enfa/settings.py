@@ -67,6 +67,8 @@ MONGO_URI = env("MONGO_URI",
     default="mongodb://admin:changeme@localhost:27017/finance?authSource=admin")
 MONGO_DB  = env("MONGO_DB", default="finance")
 
+NEWSAPI_KEY = env("NEWSAPI_KEY", default="")
+
 # Model bundle path
 MODEL_PATH = BASE_DIR / "model" / "volatility_model.pkl"
 

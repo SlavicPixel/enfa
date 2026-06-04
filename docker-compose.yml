@@ -40,12 +40,14 @@ services:
 
   # ── Scheduler (data collection) ───────────────────────────────────────
   scheduler:
-    build: ./scheduler
+    build:
+      context: .
+      dockerfile: scheduler/Dockerfile
     container_name: finance_scheduler
     restart: unless-stopped
     env_file: .env
     volumes:
-      - ./model:/app/model        # shared model bundle
+      - ./model:/app/model
     depends_on:
       mongodb:
         condition: service_healthy
