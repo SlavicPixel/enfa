@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Model Insights{% endblock %}
+{% block nav_model %}active{% endblock %}
+
+{% block content %}
+
+<div class="mb-4">
+  <h4 class="fw-bold mb-0">Model Insights</h4>
+  <small class="text-muted">
+    How the volatility prediction model works
+  </small>
+</div>
+
+<!-- Model summary cards -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-md-3">
+    <div class="card shadow-sm text-center p-3">
+      <div class="fs-2 fw-bold text-dark">{{ model_auc }}%</div>
+      <div class="text-muted small">CV AUC (±{{ model_std }}%)</div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-md-3">
+    <div class="card shadow-sm text-center p-3">
+      <div class="fs-2 fw-bold text-dark">±{{ threshold }}%</div>
+      <div class="text-muted small">Volatility threshold</div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-md-3">
+    <div class="card shadow-sm text-center p-3">
+      <div class="fs-2 fw-bold text-dark">{{ n_features }}</div>
+      <div class="text-muted small">Features used</div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-md-3">
+    <div class="card shadow-sm text-center p-3">
+      <div class="fs-2 fw-bold text-dark">{{ trained_at }}</div>
+      <div class="text-muted small">Last trained</div>
+    </div>
+  </div>
+</div>
+
+<!-- What the model predicts -->
+<div class="card shadow-sm mb-4">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-info-circle me-1"></i>What the model predicts
+  </div>
+  <div class="card-body">
+    <p class="mb-2">
+      The model predicts whether a stock will make a significant price move
+      of <strong>±{{ threshold }}%</strong> or more the following trading day,
+      regardless of direction. This is a binary classification task:
+    </p>
+    <div class="d-flex gap-3 mt-3">
+      <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-warning text-dark px-3 py-2">Volatile</span>
+        <small class="text-muted">Large move expected tomorrow</small>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-success px-3 py-2">Calm</span>
+        <small class="text-muted">No significant move expected</small>
+      </div>
+    </div>
+    <p class="text-muted small mt-3 mb-0">
+      <i class="bi bi-exclamation-circle me-1"></i>
+      Direction (UP or DOWN) is not predicted — experiments showed next-day
+      direction is not reliably predictable from public data, consistent with
+      the efficient market hypothesis.
+    </p>
+  </div>
+</div>
+
+<!-- Feature importance chart -->
+<div class="card shadow-sm mb-4">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-bar-chart-horizontal me-1"></i>
+    Feature Importance (top 15 — logistic regression coefficients)
+  </div>
+  <div class="card-body">
+    <canvas id="importanceChart" height="80"></canvas>
+    <p class="text-muted small mt-3 mb-0">
+      Positive coefficients push the model toward predicting a volatile day.
+      Negative coefficients push toward calm. Larger absolute values indicate
+      stronger influence on the prediction.
+    </p>
+  </div>
+</div>
+
+<!-- Feature descriptions -->
+<div class="card shadow-sm mb-4">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-list-ul me-1"></i>Feature descriptions
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Feature</th>
+          <th>Description</th>
+          <th class="text-end">Coefficient</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in importance %}
+        <tr>
+          <td><code>{{ f.feature }}</code></td>
+          <td class="text-muted small">
+            {% if f.feature == "volume_ratio" %}Volume relative to 20-day average
+            {% elif f.feature == "hl_range" %}Daily high-low range as % of close
+            {% elif f.feature == "hl_range_5" %}5-day average high-low range
+            {% elif f.feature == "atr_norm_14" %}Normalized Average True Range (14d)
+            {% elif f.feature == "realized_vol_5" %}Realized volatility over 5 days
+            {% elif f.feature == "realized_vol_10" %}Realized volatility over 10 days
+            {% elif f.feature == "large_move_count_5" %}Large moves in last 5 days
+            {% elif f.feature == "daily_return" %}Today's price return
+            {% elif f.feature == "volume_change" %}Volume change vs previous day
+            {% elif f.feature == "rsi_14" %}Relative Strength Index (14d)
+            {% elif f.feature == "macd" %}MACD line
+            {% elif f.feature == "macd_signal" %}MACD signal line
+            {% elif f.feature == "macd_hist" %}MACD histogram
+            {% elif f.feature == "bb_pos" %}Position within Bollinger Bands
+            {% elif f.feature == "cci_20" %}Commodity Channel Index (20d)
+            {% elif f.feature == "adx_14" %}Average Directional Index (14d)
+            {% elif f.feature == "sma_20_ratio" %}Price relative to 20-day SMA
+            {% elif f.feature == "net_sentiment" %}Daily net sentiment score
+            {% elif f.feature == "net_sentiment_3d" %}3-day sentiment trend
+            {% elif f.feature == "net_sentiment_5d" %}5-day sentiment trend
+            {% else %}{{ f.feature }}
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <span class="badge {% if f.coefficient > 0 %}bg-danger{% else %}bg-primary{% endif %}">
+              {{ f.coefficient }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+{{ importance|json_script:"importance-data" }}
+<script src="{% static 'js/model_insights.js' %}"></script>
+{% endblock %}

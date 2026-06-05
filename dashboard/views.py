@@ -90,20 +90,99 @@ class TickerDetailView(LoginRequiredMixin, View):
         result = predict(ticker, feat) if feat else None
         bundle = get_bundle()
 
+        # Top contributing features for this specific prediction
+        explanation = []
+        if feat and result:
+            model     = bundle["model"]
+            feat_cols = bundle["feature_columns"]
+            coef      = model.coef_[0]
+            scaler    = bundle["scaler"]
+
+            import numpy as np
+            row = {}
+            for col in feat_cols:
+                if col.startswith("tkr_"):
+                    row[col] = 1.0 if col.replace("tkr_", "") == ticker else 0.0
+                else:
+                    row[col] = float(feat.get(col, 0) or 0)
+
+            import pandas as pd
+            X      = pd.DataFrame([row])[feat_cols].values
+            X_sc   = scaler.transform(X)[0]
+            contribs = X_sc * coef
+
+            pairs = [
+                {"feature": f, "contribution": round(float(c), 4)}
+                for f, c in zip(feat_cols, contribs)
+                if not f.startswith("tkr_")
+            ]
+            pairs.sort(key=lambda x: abs(x["contribution"]), reverse=True)
+            top = pairs[:8]
+            max_abs = max(abs(f["contribution"]) for f in top) if top else 1
+            for f in top:
+                f["width"] = round(abs(f["contribution"]) / max_abs * 100, 1)
+            explanation = top
+
         ctx = {
-            "ticker":     ticker,
-            "result":     result,
-            "prices":     get_price_history(ticker, days=365),
-            "sentiment":  get_sentiment_history(ticker, days=365),
-            "news":       get_recent_news(ticker),
-            "feat":       feat,
-            "model_auc":  round(bundle.get("cv_auc_mean", 0) * 100, 1),
-            "trained_at": bundle.get("trained_at", ""),
+            "ticker":      ticker,
+            "result":      result,
+            "explanation": explanation,
+            "prices":      get_price_history(ticker, days=365),
+            "sentiment":   get_sentiment_history(ticker, days=365),
+            "news":        get_recent_news(ticker),
+            "feat":        feat,
+            "model_auc":   round(bundle.get("cv_auc_mean", 0) * 100, 1),
+            "trained_at":  bundle.get("trained_at", ""),
         }
         return render(request, self.template_name, ctx)
 
 
 class RefreshDataView(LoginRequiredMixin, View):
+    """On-demand data refresh — fetches latest prices and news, updates MongoDB."""
+
+    def post(self, request):
+        try:
+            from dashboard.pipeline import run_refresh
+            run_refresh()
+            return JsonResponse({"status": "ok",
+                                 "message": "Data refreshed successfully."})
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": str(e)}, status=500)
+        
+class ModelInsightsView(LoginRequiredMixin, TemplateView):
+    template_name = "dashboard/model_insights.html"
+
+    def get_context_data(self, **kwargs):
+        ctx    = super().get_context_data(**kwargs)
+        bundle = get_bundle()
+        model  = bundle["model"]
+
+        feat_cols    = bundle["feature_columns"]
+        ticker_cols  = [c for c in feat_cols if c.startswith("tkr_")]
+        feature_cols = [c for c in feat_cols if not c.startswith("tkr_")]
+
+        # Feature importance from logistic regression coefficients
+        # Use absolute mean coefficient across all features
+        coef = model.coef_[0]
+        importance = [
+            {"feature": f, "coefficient": round(float(c), 4),
+             "abs": round(abs(float(c)), 4)}
+            for f, c in zip(feat_cols, coef)
+            if not f.startswith("tkr_")
+        ]
+        importance.sort(key=lambda x: x["abs"], reverse=True)
+
+        ctx.update({
+            "bundle":       bundle,
+            "model_auc":    round(bundle.get("cv_auc_mean", 0) * 100, 1),
+            "model_std":    round(bundle.get("cv_auc_std", 0) * 100, 1),
+            "trained_at":   bundle.get("trained_at", "")[:10],
+            "threshold":    int(bundle.get("threshold", 0.03) * 100),
+            "importance":   importance[:15],
+            "n_features":   len(feature_cols),
+            "n_tickers":    len(ticker_cols),
+        })
+        return ctx
     """On-demand data refresh — fetches latest prices and news, updates MongoDB."""
 
     def post(self, request):
