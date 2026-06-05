@@ -10,7 +10,10 @@
     <h4 class="mb-0 fw-bold">Market Overview</h4>
     <small class="text-muted">Next-day volatility predictions for AI sector stocks</small>
   </div>
-  <button id="refreshBtn" class="btn btn-outline-dark btn-sm">
+  <button id="refreshBtn"
+          class="btn btn-outline-dark btn-sm"
+          data-url="{% url 'refresh_data' %}"
+          data-csrf="{{ csrf_token }}">
     <i class="bi bi-arrow-clockwise me-1"></i>Refresh data
   </button>
 </div>
@@ -85,27 +88,7 @@
 
 {% endblock %}
 
+{% load static %}
 {% block extra_js %}
-<script>
-document.getElementById("refreshBtn").addEventListener("click", function () {
-  const btn = this;
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Refreshing...';
-
-  fetch("{% url 'refresh_data' %}", {
-    method: "POST",
-    headers: {"X-CSRFToken": "{{ csrf_token }}"},
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.status === "ok") {
-      location.reload();
-    } else {
-      alert("Error: " + data.message);
-      btn.disabled = false;
-      btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Refresh data';
-    }
-  });
-});
-</script>
+<script src="{% static 'js/refresh.js' %}"></script>
 {% endblock %}

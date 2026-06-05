@@ -2,7 +2,13 @@
 
 {% block title %}{{ ticker }}{% endblock %}
 
+{% load static %}
+
 {% block content %}
+
+<!-- Data for charts (read by charts.js) -->
+{{ prices|json_script:"prices-data" }}
+{{ sentiment|json_script:"sentiment-data" }}
 
 <!-- Header -->
 <div class="d-flex justify-content-between align-items-start mb-4">
@@ -116,106 +122,11 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static 'js/charts.js' %}"></script>
 <script>
-const allPrices    = {{ prices|safe }};
-const allSentiment = {{ sentiment|safe }};
-
-// ── Helpers ───────────────────────────────────────────────────────────────
-function filterDays(data, days) {
-  if (days >= data.length) return data;
-  return data.slice(-days);
-}
-
-function setActiveBtn(group, days) {
-  group.querySelectorAll("button").forEach(b => {
-    b.classList.toggle("active", parseInt(b.dataset.days) === days);
-  });
-}
-
-// ── Price chart ───────────────────────────────────────────────────────────
-const priceCtx   = document.getElementById("priceChart");
-const priceChart = new Chart(priceCtx, {
-  type: "line",
-  data: {
-    labels:   filterDays(allPrices, 180).map(p => p.date),
-    datasets: [{
-      label:           "Close ($)",
-      data:            filterDays(allPrices, 180).map(p => p.close),
-      borderColor:     "#212529",
-      backgroundColor: "rgba(33,37,41,0.05)",
-      borderWidth:     1.5,
-      pointRadius:     0,
-      pointHoverRadius: 5,
-      pointHoverBackgroundColor: "#212529",
-      fill:            true,
-      tension:         0.3,
-    }]
-  },
-  options: {
-    responsive: true,
-    interaction: {
-      mode: "index",
-      intersect: false,
-    },
-    plugins: { legend: { display: false } },
-    scales: {
-      x: { ticks: { maxTicksLimit: 8 } },
-      y: { ticks: { callback: v => "$" + v.toFixed(0) } }
-    }
-  }
-});
-
-document.getElementById("priceRange").addEventListener("click", e => {
-  const btn = e.target.closest("button");
-  if (!btn) return;
-  const days   = parseInt(btn.dataset.days);
-  const sliced = filterDays(allPrices, days);
-  priceChart.data.labels            = sliced.map(p => p.date);
-  priceChart.data.datasets[0].data  = sliced.map(p => p.close);
-  priceChart.update();
-  setActiveBtn(document.getElementById("priceRange"), days);
-});
-
-// ── Sentiment chart ───────────────────────────────────────────────────────
-const sentCtx   = document.getElementById("sentimentChart");
-const sentChart = new Chart(sentCtx, {
-  type: "bar",
-  data: {
-    labels:   filterDays(allSentiment, 180).map(s => s.date),
-    datasets: [{
-      label: "Net Sentiment",
-      data:  filterDays(allSentiment, 180).map(s => s.net_sentiment || 0),
-      backgroundColor: filterDays(allSentiment, 180).map(s =>
-        (s.net_sentiment || 0) > 0
-          ? "rgba(25,135,84,0.6)"
-          : "rgba(220,53,69,0.6)"
-      ),
-      borderWidth: 0,
-    }]
-  },
-  options: {
-    responsive: true,
-    plugins: { legend: { display: false } },
-    scales: {
-      x: { ticks: { maxTicksLimit: 8 } },
-      y: { ticks: { maxTicksLimit: 5 } }
-    }
-  }
-});
-
-document.getElementById("sentimentRange").addEventListener("click", e => {
-  const btn = e.target.closest("button");
-  if (!btn) return;
-  const days   = parseInt(btn.dataset.days);
-  const sliced = filterDays(allSentiment, days);
-  const vals   = sliced.map(s => s.net_sentiment || 0);
-  sentChart.data.labels                       = sliced.map(s => s.date);
-  sentChart.data.datasets[0].data             = vals;
-  sentChart.data.datasets[0].backgroundColor  = vals.map(v =>
-    v > 0 ? "rgba(25,135,84,0.6)" : "rgba(220,53,69,0.6)"
-  );
-  sentChart.update();
-  setActiveBtn(document.getElementById("sentimentRange"), days);
-});
+  const allPrices    = JSON.parse(document.getElementById("prices-data").textContent);
+  const allSentiment = JSON.parse(document.getElementById("sentiment-data").textContent);
+  initPriceChart(allPrices);
+  initSentimentChart(allSentiment);
 </script>
 {% endblock %}
