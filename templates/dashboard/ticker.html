@@ -40,8 +40,14 @@
 
 <!-- Price chart -->
 <div class="card shadow-sm mb-4">
-  <div class="card-header bg-white fw-semibold">
-    <i class="bi bi-graph-up me-1"></i>Price History (180 days)
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <span class="fw-semibold"><i class="bi bi-graph-up me-1"></i>Price History</span>
+    <div class="btn-group btn-group-sm" id="priceRange">
+      <button class="btn btn-outline-secondary" data-days="7">7D</button>
+      <button class="btn btn-outline-secondary" data-days="30">1M</button>
+      <button class="btn btn-outline-secondary active" data-days="180">6M</button>
+      <button class="btn btn-outline-secondary" data-days="365">1Y</button>
+    </div>
   </div>
   <div class="card-body">
     <canvas id="priceChart" height="100"></canvas>
@@ -50,8 +56,14 @@
 
 <!-- Sentiment chart -->
 <div class="card shadow-sm mb-4">
-  <div class="card-header bg-white fw-semibold">
-    <i class="bi bi-bar-chart me-1"></i>Daily Net Sentiment (180 days)
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <span class="fw-semibold"><i class="bi bi-bar-chart me-1"></i>Daily Net Sentiment</span>
+    <div class="btn-group btn-group-sm" id="sentimentRange">
+      <button class="btn btn-outline-secondary" data-days="7">7D</button>
+      <button class="btn btn-outline-secondary" data-days="30">1M</button>
+      <button class="btn btn-outline-secondary active" data-days="180">6M</button>
+      <button class="btn btn-outline-secondary" data-days="365">1Y</button>
+    </div>
   </div>
   <div class="card-body">
     <canvas id="sentimentChart" height="80"></canvas>
@@ -79,7 +91,7 @@
           <div class="text-muted" style="font-size:0.75rem;">
             {{ article.source|default:"Unknown" }}
             &nbsp;&middot;&nbsp;
-            {{ article.published_at|truncatechars:10 }}
+            {{ article.published_at|slice:":10" }}
           </div>
         </div>
         <span class="badge ms-2
@@ -105,28 +117,46 @@
 
 {% block extra_js %}
 <script>
-// ── Price chart ───────────────────────────────────────────────────────────
-const prices    = {{ prices|safe }};
-const priceDates = prices.map(p => p.date);
-const priceClose = prices.map(p => p.close);
+const allPrices    = {{ prices|safe }};
+const allSentiment = {{ sentiment|safe }};
 
-new Chart(document.getElementById("priceChart"), {
+// ── Helpers ───────────────────────────────────────────────────────────────
+function filterDays(data, days) {
+  if (days >= data.length) return data;
+  return data.slice(-days);
+}
+
+function setActiveBtn(group, days) {
+  group.querySelectorAll("button").forEach(b => {
+    b.classList.toggle("active", parseInt(b.dataset.days) === days);
+  });
+}
+
+// ── Price chart ───────────────────────────────────────────────────────────
+const priceCtx   = document.getElementById("priceChart");
+const priceChart = new Chart(priceCtx, {
   type: "line",
   data: {
-    labels: priceDates,
+    labels:   filterDays(allPrices, 180).map(p => p.date),
     datasets: [{
-      label: "Close ($)",
-      data: priceClose,
-      borderColor: "#212529",
+      label:           "Close ($)",
+      data:            filterDays(allPrices, 180).map(p => p.close),
+      borderColor:     "#212529",
       backgroundColor: "rgba(33,37,41,0.05)",
-      borderWidth: 1.5,
-      pointRadius: 0,
-      fill: true,
-      tension: 0.3,
+      borderWidth:     1.5,
+      pointRadius:     0,
+      pointHoverRadius: 5,
+      pointHoverBackgroundColor: "#212529",
+      fill:            true,
+      tension:         0.3,
     }]
   },
   options: {
     responsive: true,
+    interaction: {
+      mode: "index",
+      intersect: false,
+    },
     plugins: { legend: { display: false } },
     scales: {
       x: { ticks: { maxTicksLimit: 8 } },
@@ -135,20 +165,30 @@ new Chart(document.getElementById("priceChart"), {
   }
 });
 
-// ── Sentiment chart ───────────────────────────────────────────────────────
-const sentiment = {{ sentiment|safe }};
-const sentDates  = sentiment.map(s => s.date);
-const sentVals   = sentiment.map(s => s.net_sentiment || 0);
+document.getElementById("priceRange").addEventListener("click", e => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  const days   = parseInt(btn.dataset.days);
+  const sliced = filterDays(allPrices, days);
+  priceChart.data.labels            = sliced.map(p => p.date);
+  priceChart.data.datasets[0].data  = sliced.map(p => p.close);
+  priceChart.update();
+  setActiveBtn(document.getElementById("priceRange"), days);
+});
 
-new Chart(document.getElementById("sentimentChart"), {
+// ── Sentiment chart ───────────────────────────────────────────────────────
+const sentCtx   = document.getElementById("sentimentChart");
+const sentChart = new Chart(sentCtx, {
   type: "bar",
   data: {
-    labels: sentDates,
+    labels:   filterDays(allSentiment, 180).map(s => s.date),
     datasets: [{
       label: "Net Sentiment",
-      data: sentVals,
-      backgroundColor: sentVals.map(v =>
-        v > 0 ? "rgba(25,135,84,0.6)" : "rgba(220,53,69,0.6)"
+      data:  filterDays(allSentiment, 180).map(s => s.net_sentiment || 0),
+      backgroundColor: filterDays(allSentiment, 180).map(s =>
+        (s.net_sentiment || 0) > 0
+          ? "rgba(25,135,84,0.6)"
+          : "rgba(220,53,69,0.6)"
       ),
       borderWidth: 0,
     }]
@@ -161,6 +201,21 @@ new Chart(document.getElementById("sentimentChart"), {
       y: { ticks: { maxTicksLimit: 5 } }
     }
   }
+});
+
+document.getElementById("sentimentRange").addEventListener("click", e => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  const days   = parseInt(btn.dataset.days);
+  const sliced = filterDays(allSentiment, days);
+  const vals   = sliced.map(s => s.net_sentiment || 0);
+  sentChart.data.labels                       = sliced.map(s => s.date);
+  sentChart.data.datasets[0].data             = vals;
+  sentChart.data.datasets[0].backgroundColor  = vals.map(v =>
+    v > 0 ? "rgba(25,135,84,0.6)" : "rgba(220,53,69,0.6)"
+  );
+  sentChart.update();
+  setActiveBtn(document.getElementById("sentimentRange"), days);
 });
 </script>
 {% endblock %}

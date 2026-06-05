@@ -72,7 +72,7 @@ class IndexView(LoginRequiredMixin, TemplateView):
                 "close":       round(price_doc["close"], 2) if price_doc else None,
                 "date":        price_doc["date"] if price_doc else None,
                 "volatile":    result["volatile"],
-                "probability": round(result["probability"] * 100, 1),
+                "probability": result["probability"],
             })
         ctx["overview"] = overview
         return ctx
@@ -93,8 +93,8 @@ class TickerDetailView(LoginRequiredMixin, View):
         ctx = {
             "ticker":     ticker,
             "result":     result,
-            "prices":     get_price_history(ticker),
-            "sentiment":  get_sentiment_history(ticker),
+            "prices":     get_price_history(ticker, days=365),
+            "sentiment":  get_sentiment_history(ticker, days=365),
             "news":       get_recent_news(ticker),
             "feat":       feat,
             "model_auc":  round(bundle.get("cv_auc_mean", 0) * 100, 1),

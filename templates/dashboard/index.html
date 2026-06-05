@@ -53,6 +53,12 @@
               </div>
               <small class="text-muted">{{ row.probability }}%</small>
             </div>
+            <div style="font-size:0.7rem;" class="text-muted">
+              {% if row.probability >= 70 %}High confidence
+              {% elif row.probability >= 50 %}Moderate confidence
+              {% else %}Low confidence
+              {% endif %}
+            </div>
           </td>
           <td>
             <a href="{% url 'ticker_detail' row.ticker %}"
